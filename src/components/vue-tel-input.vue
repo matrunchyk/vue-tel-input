@@ -83,7 +83,7 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import utils, { getCountry, setCaretPosition } from '../utils';
 import { computed, getCurrentInstance, nextTick, onMounted, ref, watch } from "vue";
-import { CountryCode } from "libphonenumber-js/custom";
+import { CountryCode } from "libphonenumber-js";
 import { DropdownOptions, InputOptions } from "@/index";
 
 const instance = getCurrentInstance();
@@ -182,7 +182,7 @@ const selectedIndex         = ref(null);
 const typeToFindInput       = ref('');
 const typeToFindTimer       = ref(null);
 const dropdownOpenDirection = ref('below');
-const parsedPlaceholder     = ref(typeof props.inputOptions === 'undefined' ? getDefault('inputOptions') : props.inputOptions);
+const parsedPlaceholder     = ref(typeof props.inputOptions === 'undefined' ? getDefault('inputOptions').placeholder : props.inputOptions);
 const input                 = ref<HTMLInputElement>(null);
 const list                  = ref<HTMLUListElement>(null);
 

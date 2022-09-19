@@ -1,6 +1,6 @@
 {
   "name": "@matrunchyk/vue3-tel-input",
-  "version": "1.0.1",
+  "version": "1.0.16",
   "description": "International Telephone Input with Vue",
   "author": "Serhii Matrunchyk <serhii@matrunchyk.com>",
   "license": "MIT",
@@ -17,7 +17,9 @@
   "main": "./dist/vue3-tel-input.umd.cjs",
   "module": "./dist/vue3-tel-input.js",
   "exports": {
-    "./style.css": "./dist/style.css",
+    "./dist/style.css": "./dist/style.css",
+    "./src/index": "./src/index.ts",
+    "./src/components/vue-tel-input.vue": "./src/components/vue-tel-input.vue",
     ".": {
       "types": "./types/index.d.ts",
       "import": "./dist/vue3-tel-input.js",
@@ -31,7 +33,8 @@
     "preview": "vite preview --port 4173",
     "build-only": "vite build",
     "type-check": "vue-tsc",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore"
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
+    "build-publish": "npm run build && npm publish"
   },
   "dependencies": {
     "libphonenumber-js": "^1.10.13"
@@ -42,7 +45,8 @@
   },
   "files": [
     "dist",
-    "types"
+    "types",
+    "src"
   ],
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.2.0",
@@ -60,7 +64,8 @@
     "vue-tsc": "^0.40.13"
   },
   "publishConfig": {
-    "registry":"https://npm.pkg.github.com/"
+    "registry":"https://registry.npmjs.org/",
+    "access": "public"
   },
   "keywords": [
     "vue",
