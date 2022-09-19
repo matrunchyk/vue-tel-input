@@ -182,7 +182,7 @@ const selectedIndex         = ref(null);
 const typeToFindInput       = ref('');
 const typeToFindTimer       = ref(null);
 const dropdownOpenDirection = ref('below');
-const parsedPlaceholder     = ref(typeof props.inputOptions === 'undefined' ? getDefault('inputOptions').placeholder : props.inputOptions);
+const parsedPlaceholder     = ref(typeof props.inputOptions?.placeholder === 'undefined' ? getDefault('inputOptions')?.placeholder : props.inputOptions?.placeholder);
 const input                 = ref<HTMLInputElement>(null);
 const list                  = ref<HTMLUListElement>(null);
 
