@@ -1,13 +1,13 @@
 <template>
-  <div :class="['vue-tel-input', styleClasses, { disabled: disabled }]">
+  <div :class="['vue-tel-input', styleClassesFallback, { disabled: disabledFallback }]">
     <div
       v-click-outside="clickedOutside"
       aria-label="Country Code Selector"
       aria-haspopup="listbox"
       :aria-expanded="open"
       role="button"
-      :class="['vti__dropdown', { open: open, disabled: dropdownOptions.disabled }]"
-      :tabindex="dropdownOptions.tabindex"
+      :class="['vti__dropdown', { open: open, disabled: dropdownOptionsFallback.disabled }]"
+      :tabindex="dropdownOptionsFallback.tabindex"
       @keydown="keyboardNav"
       @click="toggleDropdown"
       @keydown.space="toggleDropdown"
@@ -16,10 +16,10 @@
     >
       <span class="vti__selection">
         <span
-          v-if="dropdownOptions.showFlags"
+          v-if="dropdownOptionsFallback.showFlags"
           :class="['vti__flag', activeCountryCode.toLowerCase()]"
         ></span>
-        <span v-if="dropdownOptions.showDialCodeInSelection" class="vti__country-code">
+        <span v-if="dropdownOptionsFallback.showDialCodeInSelection" class="vti__country-code">
           +{{ activeCountry && activeCountry.dialCode }}
         </span>
         <slot name="arrow-icon" :open="open">
@@ -44,47 +44,151 @@
           :aria-selected="activeCountryCode === pb.iso2 && !pb.preferred"
         >
           <span
-            v-if="dropdownOptions.showFlags"
+            v-if="dropdownOptionsFallback.showFlags"
             :class="['vti__flag', pb.iso2.toLowerCase()]"
           ></span>
           <strong>{{ pb.name }}</strong>
-          <span v-if="dropdownOptions.showDialCodeInList"> +{{ pb.dialCode }} </span>
+          <span v-if="dropdownOptionsFallback.showDialCodeInList"> +{{ pb.dialCode }} </span>
         </li>
       </ul>
     </div>
     <input
-      v-model="phone"
       ref="input"
-      :type="inputOptions.type"
-      :autocomplete="inputOptions.autocomplete"
-      :autofocus="inputOptions.autofocus"
-      :class="['vti__input', inputOptions.styleClasses]"
-      :disabled="disabled"
-      :id="inputOptions.id"
-      :maxlength="inputOptions.maxlength"
-      :name="inputOptions.name"
+      :type="inputOptionsFallback.type"
+      :autocomplete="inputOptionsFallback.autocomplete"
+      :autofocus="inputOptionsFallback.autofocus"
+      :class="['vti__input', inputOptionsFallback.styleClasses]"
+      :disabled="disabledFallback"
+      :id="inputOptionsFallback.id"
+      :maxlength="inputOptionsFallback.maxlength"
+      :name="inputOptionsFallback.name"
       :placeholder="parsedPlaceholder"
-      :readonly="inputOptions.readonly"
-      :required="inputOptions.required"
-      :tabindex="inputOptions.tabindex"
+      :readonly="inputOptionsFallback.readonly"
+      :required="inputOptionsFallback.required"
+      :tabindex="inputOptionsFallback.tabindex"
       :value="modelValue"
-      :aria-describedby="inputOptions['aria-describedby']"
+      :aria-describedby="inputOptionsFallback['aria-describedby']"
       @blur="onBlur"
       @focus="onFocus"
       @input="onInput"
       @keyup.enter="onEnter"
       @keyup.space="onSpace"
+      @update:modelValue="setModel"
     />
-    <slot name="icon-right" />
+    <slot name="icon-right"/>
   </div>
 </template>
 
-<script>
+<script lang="ts" setup>
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import utils, { getCountry, setCaretPosition } from '../utils';
-import clickOutside from '../directives/click-outside';
+import { computed, getCurrentInstance, nextTick, onMounted, ref, watch } from "vue";
+import { CountryCode } from "libphonenumber-js/custom";
+import { DropdownOptions, InputOptions } from "@/index";
 
-function getDefault(key) {
+const instance = getCurrentInstance();
+
+// ## Props
+const props = defineProps({
+  modelValue:          {
+    type:    String,
+    default: '',
+  },
+  allCountries:        {
+    type:    Array,
+    default: undefined,
+  },
+  autoFormat:          {
+    type:    Boolean,
+    default: undefined,
+  },
+  customValidate:      {
+    type:    [Boolean, RegExp],
+    default: undefined,
+  },
+  defaultCountry:      {
+    // Default country code, ie: 'AU'
+    // Will override the current country of user
+    type:    [String, Number],
+    default: undefined,
+  },
+  disabled:            {
+    type:    Boolean,
+    default: undefined,
+  },
+  autoDefaultCountry:  {
+    type:    Boolean,
+    default: undefined,
+  },
+  dropdownOptions:     {
+    type:    Object,
+    default: undefined,
+  },
+  ignoredCountries:    {
+    type:    Array,
+    default: undefined,
+  },
+  inputOptions:        {
+    type:    Object,
+    default: undefined,
+  },
+  invalidMsg:          {
+    type:    String,
+    default: undefined,
+  },
+  mode:                {
+    type:    String,
+    default: undefined,
+  },
+  onlyCountries:       {
+    type:    Array,
+    default: undefined,
+  },
+  preferredCountries:  {
+    type:    Array,
+    default: undefined,
+  },
+  validCharactersOnly: {
+    type:    Boolean,
+    default: undefined,
+  },
+  styleClasses:        {
+    type:    [String, Array, Object],
+    default: undefined,
+  },
+});
+
+// ## Emits
+
+const emits = defineEmits([
+  'validate',
+  'update:modelValue',
+  'on-input',
+  'blur',
+  'focus',
+  'enter',
+  'space',
+  'country-changed',
+  'open',
+  'close',
+]);
+
+// ## Data
+const phone                 = ref('');
+const activeCountryCode     = ref<string | CountryCode>('');
+const open                  = ref(false);
+const finishMounted         = ref(false);
+const selectedIndex         = ref(null);
+const typeToFindInput       = ref('');
+const typeToFindTimer       = ref(null);
+const dropdownOpenDirection = ref('below');
+const parsedPlaceholder     = ref(typeof props.inputOptions === 'undefined' ? getDefault('inputOptions') : props.inputOptions);
+const input                 = ref<HTMLInputElement>(null);
+const list                  = ref<HTMLUListElement>(null);
+
+// ## Helpers
+
+function getDefault(key): any {
   const value = utils.options[key];
   if (typeof value === 'undefined') {
     return utils.options[key];
@@ -92,531 +196,464 @@ function getDefault(key) {
   return value;
 }
 
-// let examples = null;
-// const getExamples = () => new Promise(
-//   (resolve) => (
-//     examples
-//       ? resolve(examples)
-//       : import('libphonenumber-js/examples.mobile.json')
-//         .then((results) => {
-//           examples = results;
-//           resolve(results);
-//         })
-//   ),
-// );
+// ## Computed
+const allCountriesFallback        = computed(() => typeof props.allCountries === 'undefined' ? getDefault('allCountries') : props.allCountries);
+const autoFormatFallback          = computed(() => typeof props.autoFormat === 'undefined' ? getDefault('autoFormat') : props.autoFormat);
+const customValidateFallback      = computed(() => typeof props.customValidate === 'undefined' ? getDefault('customValidate') : props.customValidate);
+const defaultCountryFallback      = computed(() => typeof props.defaultCountry === 'undefined' ? getDefault('defaultCountry') : props.defaultCountry);
+const disabledFallback            = computed(() => typeof props.disabled === 'undefined' ? getDefault('disabled') : props.disabled);
+const autoDefaultCountryFallback  = computed(() => typeof props.autoDefaultCountry === 'undefined' ? getDefault('autoDefaultCountry') : props.autoDefaultCountry);
+const dropdownOptionsFallback     = computed<DropdownOptions>(() => typeof props.dropdownOptions === 'undefined' ? getDefault('dropdownOptions') : props.dropdownOptions);
+const ignoredCountriesFallback    = computed(() => typeof props.ignoredCountries === 'undefined' ? getDefault('ignoredCountries') : props.ignoredCountries);
+const inputOptionsFallback        = computed<InputOptions>(() => typeof props.inputOptions === 'undefined' ? getDefault('inputOptions') : props.inputOptions);
+const invalidMsgFallback          = computed(() => typeof props.invalidMsg === 'undefined' ? getDefault('invalidMsg') : props.invalidMsg);
+const modeFallback                = computed(() => typeof props.mode === 'undefined' ? getDefault('mode') : props.mode);
+const onlyCountriesFallback       = computed(() => typeof props.onlyCountries === 'undefined' ? getDefault('onlyCountries') : props.onlyCountries);
+const preferredCountriesFallback  = computed(() => typeof props.preferredCountries === 'undefined' ? getDefault('preferredCountries') : props.preferredCountries);
+const validCharactersOnlyFallback = computed(() => typeof props.validCharactersOnly === 'undefined' ? getDefault('validCharactersOnly') : props.validCharactersOnly);
+const styleClassesFallback        = computed(() => typeof props.styleClasses === 'undefined' ? getDefault('styleClasses') : props.styleClasses);
 
-export default {
-  name: 'VueTelInput',
-  directives: {
-    clickOutside,
-  },
-  props: {
-    modelValue: {
-      type: String,
-      default: '',
-    },
-    allCountries: {
-      type: Array,
-      default: () => getDefault('allCountries'),
-    },
-    autoFormat: {
-      type: Boolean,
-      default: () => getDefault('autoFormat'),
-    },
-    customValidate: {
-      type: [Boolean, RegExp],
-      default: () => getDefault('customValidate'),
-    },
-    defaultCountry: {
-      // Default country code, ie: 'AU'
-      // Will override the current country of user
-      type: [String, Number],
-      default: () => getDefault('defaultCountry'),
-    },
-    disabled: {
-      type: Boolean,
-      default: () => getDefault('disabled'),
-    },
-    autoDefaultCountry: {
-      type: Boolean,
-      default: () => getDefault('autoDefaultCountry'),
-    },
-    dropdownOptions: {
-      type: Object,
-      default: () => getDefault('dropdownOptions'),
-    },
-    ignoredCountries: {
-      type: Array,
-      default: () => getDefault('ignoredCountries'),
-    },
-    inputOptions: {
-      type: Object,
-      default: () => getDefault('inputOptions'),
-    },
-    invalidMsg: {
-      type: String,
-      default: () => getDefault('invalidMsg'),
-    },
-    mode: {
-      type: String,
-      default: () => getDefault('mode'),
-    },
-    onlyCountries: {
-      type: Array,
-      default: () => getDefault('onlyCountries'),
-    },
-    preferredCountries: {
-      type: Array,
-      default: () => getDefault('preferredCountries'),
-    },
-    validCharactersOnly: {
-      type: Boolean,
-      default: () => getDefault('validCharactersOnly'),
-    },
-    styleClasses: {
-      type: [String, Array, Object],
-      default: () => getDefault('styleClasses'),
-    },
-  },
-  data() {
-    return {
-      phone: '',
-      activeCountryCode: '',
-      open: false,
-      finishMounted: false,
-      selectedIndex: null,
-      typeToFindInput: '',
-      typeToFindTimer: null,
-      dropdownOpenDirection: 'below',
-      parsedPlaceholder: this.inputOptions.placeholder,
-    };
-  },
-  computed: {
-    activeCountry() {
-      return this.findCountry(this.activeCountryCode);
-    },
-    parsedMode() {
-      if (this.mode === 'auto') {
-        if (!this.phone || this.phone[0] !== '+') {
-          return 'national';
-        }
-        return 'international';
-      }
-      if (!['international', 'national'].includes(this.mode)) {
-        console.error('Invalid value of prop "mode"');
-        return 'international';
-      }
-      return this.mode;
-    },
-    filteredCountries() {
-      // List countries after filtered
-      if (this.onlyCountries.length) {
-        return this.allCountries
-          .filter(({ iso2 }) => this.onlyCountries.some((c) => c.toUpperCase() === iso2));
-      }
+const activeCountry = computed(() => findCountry(activeCountryCode.value));
+const parsedMode    = computed(() => {
+  if (modeFallback.value === 'auto') {
+    if (!phone.value || phone.value[0] !== '+') {
+      return 'national';
+    }
+    return 'international';
+  }
+  if (!['international', 'national'].includes(modeFallback.value)) {
+    console.error('Invalid value of prop "mode"');
+    return 'international';
+  }
+  return modeFallback.value;
+});
 
-      if (this.ignoredCountries.length) {
-        return this.allCountries.filter(
-          ({ iso2 }) => !this.ignoredCountries.includes(iso2.toUpperCase())
-            && !this.ignoredCountries.includes(iso2.toLowerCase()),
-        );
-      }
+const filteredCountries = computed(() => {
+  // List countries after filtered
+  if (onlyCountriesFallback.value.length) {
+    return allCountriesFallback.value
+      .filter(({iso2}) => onlyCountriesFallback.value.some((c) => c.toUpperCase() === iso2));
+  }
 
-      return this.allCountries;
-    },
-    sortedCountries() {
-      // Sort the list countries: from preferred countries to all countries
-      const preferredCountries = this.getCountries(this.preferredCountries)
-        .map((country) => ({ ...country, preferred: true }));
+  if (ignoredCountriesFallback.value.length) {
+    return allCountriesFallback.value.filter(
+      ({iso2}) => !ignoredCountriesFallback.value.includes(iso2.toUpperCase())
+        && !ignoredCountriesFallback.value.includes(iso2.toLowerCase()),
+    );
+  }
 
-      return [...preferredCountries, ...this.filteredCountries];
-    },
-    phoneObject() {
-      let result;
-      if (this.phone?.[0] === '+') {
-        result = parsePhoneNumberFromString(this.phone) || {};
-      } else {
-        result = parsePhoneNumberFromString(this.phone, this.activeCountryCode) || {};
-      }
+  return allCountriesFallback.value;
+});
 
-      const {
-        metadata,
-        ...phoneObject
-      } = result;
+const sortedCountries = computed(() => {
+  // Sort the list countries: from preferred countries to all countries
+  const preferredCountries = getCountries(preferredCountriesFallback.value)
+    .map((country) => ({...country, preferred: true}));
 
-      let valid = result.isValid?.();
-      let formatted = this.phone;
+  return [...preferredCountries, ...filteredCountries.value];
+});
 
-      if (valid) {
-        formatted = result.format?.(this.parsedMode.toUpperCase());
-      }
+const phoneObject = computed(() => {
+  let result;
+  if (phone.value?.[0] === '+') {
+    result = parsePhoneNumberFromString(phone.value) || {};
+  } else {
+    // @ts-ignore: Potential bug
+    result = parsePhoneNumberFromString(phone.value, activeCountryCode.value) || {};
+  }
 
-      if (result.country && (this.ignoredCountries.length || this.onlyCountries.length)) {
-        if (!this.findCountry(result.country)) {
-          valid = false;
-          Object.assign(result, { country: null });
-        }
-      }
+  const {
+          ...phoneObject
+        } = result;
 
-      Object.assign(phoneObject, {
-        countryCode: result.country,
-        valid,
-        country: this.activeCountry,
-        formatted,
-      });
+  let valid     = result.isValid?.();
+  let formatted = phone.value;
 
-      return phoneObject;
-    },
-  },
-  watch: {
-    activeCountry(value, oldValue) {
-      if (!value && oldValue?.iso2) {
-        this.activeCountryCode = oldValue.iso2;
-        return;
-      }
-      if (value?.iso2) {
-        this.$emit('country-changed', value);
-        // this.resetPlaceholder();
-      }
-    },
-    'phoneObject.countryCode': function (value) {
-      this.activeCountryCode = value || '';
-    },
-    'phoneObject.valid': function () {
-      this.$emit('validate', this.phoneObject);
-    },
-    'phoneObject.formatted': function (value) {
-      if (!this.autoFormat || this.customValidate) {
-        return;
-      }
-      this.emitInput(value);
+  if (valid) {
+    formatted = result.format?.(parsedMode.value.toUpperCase());
+  }
 
-      this.$nextTick(() => {
-        // In case `v-model` is not set, we need to update the `phone` to be new formatted value
-        if (value && !this.modelValue) {
-          this.phone = value;
-        }
-      });
-    },
-    // finishMounted() {
-    //   this.resetPlaceholder();
-    // },
-    'inputOptions.placeholder': function () {
-      this.resetPlaceholder();
-    },
-    modelValue(value, oldValue) {
-      if (!this.testCharacters()) {
-        this.$nextTick(() => {
-          this.phone = oldValue;
-          this.onInput();
-        });
-      } else {
-        this.phone = value;
+  if (result.country && (ignoredCountriesFallback.value.length || onlyCountriesFallback.value.length)) {
+    if (!findCountry(result.country)) {
+      valid = false;
+      Object.assign(result, {country: null});
+    }
+  }
+
+  Object.assign(phoneObject, {
+    countryCode: result.country,
+    valid,
+    country:     activeCountry.value,
+    formatted,
+  });
+
+  return phoneObject;
+});
+
+
+onMounted(() => {
+  if (props.modelValue) {
+    phone.value = props.modelValue.trim();
+  }
+
+  cleanInvalidCharacters();
+
+  initializeCountry()
+    .then(() => {
+      if (!phone.value
+        && inputOptionsFallback.value?.showDialCode
+        && activeCountryCode.value) {
+        phone.value = `+${activeCountryCode.value}`;
       }
-    },
-    open(isDropdownOpened) {
-      // Emit open and close events
-      if (isDropdownOpened) {
-        this.setDropdownPosition();
-        this.$emit('open');
-      } else {
-        this.$emit('close');
-      }
-    },
-  },
-  mounted() {
-    if (this.modelValue) {
-      this.phone = this.modelValue.trim();
+      emits('validate', phoneObject.value);
+    })
+    .catch(console.error)
+    .then(() => {
+      finishMounted.value = true;
+    });
+});
+
+// ## Methods
+function resetPlaceholder() {
+  parsedPlaceholder.value = inputOptionsFallback.value.placeholder;
+}
+
+function initializeCountry() {
+  return new Promise((resolve) => {
+    /**
+     * 1. If the phone included prefix (i.e. +12), try to get the country and set it
+     */
+    if (phone.value?.[0] === '+') {
+      resolve(true);
+      return;
     }
 
-    this.cleanInvalidCharacters();
+    /**
+     * 2. Use default country if passed from parent
+     */
+    if (defaultCountryFallback.value) {
+      if (typeof defaultCountryFallback.value === 'string') {
+        choose(defaultCountryFallback.value);
+        resolve(true);
+        return;
+      }
 
-    this.initializeCountry()
-      .then(() => {
-        if (!this.phone
-          && this.inputOptions?.showDialCode
-          && this.activeCountryCode) {
-          this.phone = `+${this.activeCountryCode}`;
-        }
-        this.$emit('validate', this.phoneObject);
-      })
-      .catch(console.error)
-      .then(() => {
-        this.finishMounted = true;
-      });
-  },
-  methods: {
-    resetPlaceholder() {
-      this.parsedPlaceholder = this.inputOptions.placeholder;
-      // TODO: Fix dynamicPlaceholder
-      // if (!this.inputOptions.dynamicPlaceholder) {
-      //   return result;
-      // }
-      // getExamples()
-      //   .then((results) => {
-      //     examples = results;
-      //     const mode = (!this.mode || this.mode === 'auto') ? 'international' : this.mode;
-      //     const number = getExampleNumber(this.activeCountryCode.toUpperCase(), results);
-      //     this.parsedPlaceholder = number?.format(mode.toUpperCase()) || this.placeholder;
-      //   })
-      //   .catch(console.error);
-    },
-    initializeCountry() {
-      return new Promise((resolve) => {
-        /**
-         * 1. If the phone included prefix (i.e. +12), try to get the country and set it
-         */
-        if (this.phone?.[0] === '+') {
-          resolve();
+      if (typeof defaultCountryFallback.value === 'number') {
+        const country = findCountryByDialCode(defaultCountryFallback.value);
+        if (country) {
+          choose(country.iso2);
+          resolve(true);
           return;
         }
-        /**
-         * 2. Use default country if passed from parent
-         */
-        if (this.defaultCountry) {
-          if (typeof this.defaultCountry === 'string') {
-            this.choose(this.defaultCountry);
-            resolve();
-            return;
-          }
-          if (typeof this.defaultCountry === 'number') {
-            const country = this.findCountryByDialCode(this.defaultCountry);
-            if (country) {
-              this.choose(country.iso2);
-              resolve();
-              return;
-            }
-          }
-        }
+      }
+    }
 
-        const fallbackCountry = this.preferredCountries[0] || this.filteredCountries[0];
-        /**
-         * 3. Check if fetching country based on user's IP is allowed, set it as the default country
-         */
-        if (this.autoDefaultCountry) {
-          getCountry()
-            .then((res) => {
-              this.choose(res || this.activeCountryCode);
-            })
-            .catch((error) => {
-              console.warn(error);
-              /**
-               * 4. Use the first country from preferred list (if available) or all countries list
-               */
-              this.choose(fallbackCountry);
-            })
-            .then(() => {
-              resolve();
-            });
-        } else {
+    const fallbackCountry = preferredCountriesFallback.value[0] || filteredCountries.value[0];
+    /**
+     * 3. Check if fetching country based on user's IP is allowed, set it as the default country
+     */
+    if (autoDefaultCountryFallback.value) {
+      getCountry()
+        .then((res) => {
+          choose(res || activeCountryCode.value);
+        })
+        .catch((error) => {
+          console.warn(error);
           /**
            * 4. Use the first country from preferred list (if available) or all countries list
            */
-          this.choose(fallbackCountry);
-          resolve();
-        }
-      });
-    },
-    /**
-     * Get the list of countries from the list of iso2 code
-     */
-    getCountries(list = []) {
-      return list
-        .map((countryCode) => this.findCountry(countryCode))
-        .filter(Boolean);
-    },
-    findCountry(iso = '') {
-      return this.filteredCountries.find((country) => country.iso2 === iso.toUpperCase());
-    },
-    findCountryByDialCode(dialCode) {
-      return this.filteredCountries.find((country) => Number(country.dialCode) === dialCode);
-    },
-    getItemClass(index, iso2) {
-      const highlighted = this.selectedIndex === index;
-      const lastPreferred = index === this.preferredCountries.length - 1;
-      const preferred = this.preferredCountries.some((c) => c.toUpperCase() === iso2);
-      return {
-        highlighted,
-        'last-preferred': lastPreferred,
-        preferred,
-      };
-    },
-    choose(country) {
-      let parsedCountry = country;
-      if (typeof parsedCountry === 'string') {
-        parsedCountry = this.findCountry(parsedCountry);
-      }
+          choose(fallbackCountry);
+        })
+        .then(() => {
+          resolve(true);
+        });
+    } else {
+      /**
+       * 4. Use the first country from preferred list (if available) or all countries list
+       */
+      choose(fallbackCountry);
+      resolve(true);
+    }
+  });
+}
 
-      if (!parsedCountry) {
-        return;
-      }
-      if (this.phone?.[0] === '+'
-        && parsedCountry.iso2
-        && this.phoneObject.nationalNumber) {
-        this.activeCountryCode = parsedCountry.iso2;
-        // Attach the current phone number with the newly selected country
-        this.phone = parsePhoneNumberFromString(
-          this.phoneObject.nationalNumber,
-          parsedCountry.iso2,
-        )
-          .formatInternational();
-        return;
-      }
 
-      if (this.inputOptions?.showDialCode && parsedCountry) {
-        // Reset phone if the showDialCode is set
-        this.phone = `+${parsedCountry.dialCode}`;
-        this.activeCountryCode = parsedCountry.iso2 || '';
-        return;
-      }
+/**
+ * Get the list of countries from the list of iso2 code
+ */
+function getCountries(list = []) {
+  return list
+    .map((countryCode) => findCountry(countryCode))
+    .filter(Boolean);
+}
 
-      // update value, even if international mode is NOT used
-      this.activeCountryCode = parsedCountry.iso2 || '';
-      this.emitInput(this.phone);
-    },
-    cleanInvalidCharacters() {
-      const currentPhone = this.phone;
-      if (this.validCharactersOnly) {
-        const results = this.phone.match(/[()\-+0-9\s]*/g);
-        this.phone = results.join('');
-      }
+function findCountry(iso = '') {
+  return filteredCountries.value.find((country) => country.iso2 === iso.toUpperCase());
+}
 
-      if (this.customValidate && this.customValidate instanceof RegExp) {
-        const results = this.phone.match(this.customValidate);
-        this.phone = results.join('');
-      }
+function findCountryByDialCode(dialCode) {
+  return filteredCountries.value.find((country) => Number(country.dialCode) === dialCode);
+}
 
-      if (currentPhone !== this.phone) {
-        this.emitInput(this.phone);
+function getItemClass(index, iso2) {
+  const highlighted   = selectedIndex.value === index;
+  const lastPreferred = index === preferredCountriesFallback.value.length - 1;
+  const preferred     = preferredCountriesFallback.value.some((c) => c.toUpperCase() === iso2);
+
+  return {
+    highlighted,
+    'last-preferred': lastPreferred,
+    preferred,
+  };
+}
+
+function choose(country) {
+  let parsedCountry = country;
+  if (typeof parsedCountry === 'string') {
+    parsedCountry = findCountry(parsedCountry);
+  }
+
+  if (!parsedCountry) {
+    return;
+  }
+  if (phone.value?.[0] === '+'
+    && parsedCountry.iso2
+    && phoneObject.value.nationalNumber) {
+    activeCountryCode.value = parsedCountry.iso2;
+    // Attach the current phone number with the newly selected country
+    phone.value             = parsePhoneNumberFromString(
+      phoneObject.value.nationalNumber,
+      parsedCountry.iso2,
+    )
+      .formatInternational();
+    return;
+  }
+
+  if (inputOptionsFallback.value?.showDialCode && parsedCountry) {
+    // Reset phone if the showDialCode is set
+    phone.value             = `+${parsedCountry.dialCode}`;
+    activeCountryCode.value = parsedCountry.iso2 || '';
+    return;
+  }
+
+  // update value, even if international mode is NOT used
+  activeCountryCode.value = parsedCountry.iso2 || '';
+  emitInput(phone.value);
+}
+
+function cleanInvalidCharacters() {
+  const currentPhone = phone.value;
+  if (validCharactersOnlyFallback.value) {
+    const results = phone.value.match(/[()\-+0-9\s]*/g);
+    phone.value   = results.join('');
+  }
+
+  if (customValidateFallback.value && customValidateFallback.value instanceof RegExp) {
+    const results = phone.value.match(customValidateFallback.value);
+    phone.value   = results.join('');
+  }
+
+  if (currentPhone !== phone.value) {
+    emitInput(phone.value);
+  }
+}
+
+function testCharacters() {
+  if (validCharactersOnlyFallback.value) {
+    const result = /^[()\-+0-9\s]*$/.test(phone.value);
+    if (!result) {
+      return false;
+    }
+  }
+  if (customValidateFallback.value) {
+    return testCustomValidate();
+  }
+  return true;
+}
+
+function testCustomValidate() {
+  return customValidateFallback.value instanceof RegExp ? customValidateFallback.value.test(phone.value) : false;
+}
+
+function onInput() {
+  input.value.setCustomValidity(phoneObject.value.valid ? '' : invalidMsgFallback.value);
+  // Returns response.number to assign it to v-model (if being used)
+  // Returns full response for cases @input is used
+  // and parent wants to return the whole response.
+  emitInput(phone.value);
+}
+
+function setModel(model) {
+  phone.value = model;
+}
+
+function emitInput(value) {
+  emits('update:modelValue', value);
+  emits('on-input', value, phoneObject.value, input.value);
+}
+
+function onBlur() {
+  emits('blur');
+}
+
+function onFocus() {
+  setCaretPosition(input.value, phone.value.length);
+  emits('focus');
+}
+
+function onEnter() {
+  emits('enter');
+}
+
+function onSpace() {
+  emits('space');
+}
+
+function toggleDropdown() {
+  if (disabledFallback.value || dropdownOptionsFallback.value.disabled) {
+    return;
+  }
+  open.value = !open.value;
+}
+
+function clickedOutside() {
+  open.value = false;
+}
+
+function keyboardNav(e) {
+  if (e.keyCode === 40) {
+    // down arrow
+    e.preventDefault();
+    open.value = true;
+    if (selectedIndex.value === null) {
+      selectedIndex.value = 0;
+    } else {
+      selectedIndex.value = Math.min(sortedCountries.value.length - 1, selectedIndex.value + 1);
+    }
+    const selEle = list.value.children[selectedIndex.value] as HTMLLIElement;
+    selEle.focus();
+    if (selEle.offsetTop + selEle.clientHeight
+      > list.value.scrollTop + list.value.clientHeight) {
+      list.value.scrollTop = selEle.offsetTop
+        - list.value.clientHeight
+        + selEle.clientHeight;
+    }
+  } else if (e.keyCode === 38) {
+    // up arrow
+    e.preventDefault();
+    open.value = true;
+    if (selectedIndex.value === null) {
+      selectedIndex.value = sortedCountries.value.length - 1;
+    } else {
+      selectedIndex.value = Math.max(0, selectedIndex.value - 1);
+    }
+    const selEle = list.value.children[selectedIndex.value] as HTMLLIElement;
+    selEle.focus();
+    if (selEle.offsetTop < list.value.scrollTop) {
+      list.value.scrollTop = selEle.offsetTop;
+    }
+  } else if (e.keyCode === 13) {
+    // enter key
+    if (selectedIndex.value !== null) {
+      choose(sortedCountries[selectedIndex.value]);
+    }
+    open.value = !open.value;
+  } else {
+    // typing a country's name
+    typeToFindInput.value += e.key;
+    clearTimeout(typeToFindTimer.value);
+    typeToFindTimer.value = setTimeout(() => {
+      typeToFindInput.value = '';
+    }, 700);
+    // don't include preferred countries, so we jump to the right place in the alphabet
+    const typedCountryI  = sortedCountries.value
+      .slice(preferredCountriesFallback.value.length)
+      .findIndex((c) => c.name.toLowerCase().startsWith(typeToFindInput.value));
+    if (typedCountryI >= 0) {
+      selectedIndex.value       = preferredCountriesFallback.value.length + typedCountryI;
+      const selEle             = list.value.children[selectedIndex.value] as HTMLLIElement;
+      const needToScrollTop    = selEle.offsetTop < list.value.scrollTop;
+      const needToScrollBottom = selEle.offsetTop + selEle.clientHeight
+        > list.value.scrollTop + list.value.clientHeight;
+      if (needToScrollTop || needToScrollBottom) {
+        list.value.scrollTop = selEle.offsetTop - list.value.clientHeight / 2;
       }
-    },
-    testCharacters() {
-      if (this.validCharactersOnly) {
-        const result = /^[()\-+0-9\s]*$/.test(this.phone);
-        if (!result) {
-          return false;
-        }
-      }
-      if (this.customValidate) {
-        return this.testCustomValidate();
-      }
-      return true;
-    },
-    testCustomValidate() {
-      return this.customValidate instanceof RegExp ? this.customValidate.test(this.phone) : false;
-    },
-    onInput() {
-      this.$refs.input.setCustomValidity(this.phoneObject.valid ? '' : this.invalidMsg);
-      // Returns response.number to assign it to v-model (if being used)
-      // Returns full response for cases @input is used
-      // and parent wants to return the whole response.
-      this.emitInput(this.phone);
-    },
-    emitInput(value) {
-      this.$emit('update:modelValue', value);
-      this.$emit('on-input', value, this.phoneObject, this.$refs.input);
-    },
-    onBlur() {
-      this.$emit('blur');
-    },
-    onFocus() {
-      setCaretPosition(this.$refs.input, this.phone.length);
-      this.$emit('focus');
-    },
-    onEnter() {
-      this.$emit('enter');
-    },
-    onSpace() {
-      this.$emit('space');
-    },
-    focus() {
-      this.$refs.input.focus();
-    },
-    toggleDropdown() {
-      if (this.disabled || this.dropdownOptions.disabled) {
-        return;
-      }
-      this.open = !this.open;
-    },
-    clickedOutside() {
-      this.open = false;
-    },
-    keyboardNav(e) {
-      if (e.keyCode === 40) {
-        // down arrow
-        e.preventDefault();
-        this.open = true;
-        if (this.selectedIndex === null) {
-          this.selectedIndex = 0;
-        } else {
-          this.selectedIndex = Math.min(this.sortedCountries.length - 1, this.selectedIndex + 1);
-        }
-        const selEle = this.$refs.list.children[this.selectedIndex];
-        selEle.focus();
-        if (selEle.offsetTop + selEle.clientHeight
-          > this.$refs.list.scrollTop + this.$refs.list.clientHeight) {
-          this.$refs.list.scrollTop = selEle.offsetTop
-            - this.$refs.list.clientHeight
-            + selEle.clientHeight;
-        }
-      } else if (e.keyCode === 38) {
-        // up arrow
-        e.preventDefault();
-        this.open = true;
-        if (this.selectedIndex === null) {
-          this.selectedIndex = this.sortedCountries.length - 1;
-        } else {
-          this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-        }
-        const selEle = this.$refs.list.children[this.selectedIndex];
-        selEle.focus();
-        if (selEle.offsetTop < this.$refs.list.scrollTop) {
-          this.$refs.list.scrollTop = selEle.offsetTop;
-        }
-      } else if (e.keyCode === 13) {
-        // enter key
-        if (this.selectedIndex !== null) {
-          this.choose(this.sortedCountries[this.selectedIndex]);
-        }
-        this.open = !this.open;
-      } else {
-        // typing a country's name
-        this.typeToFindInput += e.key;
-        clearTimeout(this.typeToFindTimer);
-        this.typeToFindTimer = setTimeout(() => {
-          this.typeToFindInput = '';
-        }, 700);
-        // don't include preferred countries so we jump to the right place in the alphabet
-        const typedCountryI = this.sortedCountries
-          .slice(this.preferredCountries.length)
-          .findIndex((c) => c.name.toLowerCase().startsWith(this.typeToFindInput));
-        if (typedCountryI >= 0) {
-          this.selectedIndex = this.preferredCountries.length + typedCountryI;
-          const selEle = this.$refs.list.children[this.selectedIndex];
-          const needToScrollTop = selEle.offsetTop < this.$refs.list.scrollTop;
-          const needToScrollBottom = selEle.offsetTop + selEle.clientHeight
-            > this.$refs.list.scrollTop + this.$refs.list.clientHeight;
-          if (needToScrollTop || needToScrollBottom) {
-            this.$refs.list.scrollTop = selEle.offsetTop - this.$refs.list.clientHeight / 2;
-          }
-        }
-      }
-    },
-    reset() {
-      this.selectedIndex = this.sortedCountries.map((c) => c.iso2).indexOf(this.activeCountryCode);
-      this.open = false;
-    },
-    setDropdownPosition() {
-      const spaceBelow = window.innerHeight - this.$el.getBoundingClientRect().bottom;
-      const hasEnoughSpaceBelow = spaceBelow > 200;
-      if (hasEnoughSpaceBelow) {
-        this.dropdownOpenDirection = 'below';
-      } else {
-        this.dropdownOpenDirection = 'above';
-      }
-    },
-  },
-};
+    }
+  }
+}
+
+function reset() {
+  selectedIndex.value = sortedCountries.value.map((c) => c.iso2).indexOf(activeCountryCode.value);
+  open.value          = false;
+}
+
+function setDropdownPosition() {
+  const spaceBelow          = window.innerHeight - instance.vnode.el.getBoundingClientRect().bottom;
+  const hasEnoughSpaceBelow = spaceBelow > 200;
+  if (hasEnoughSpaceBelow) {
+    dropdownOpenDirection.value = 'below';
+  } else {
+    dropdownOpenDirection.value = 'above';
+  }
+}
+
+watch(activeCountry, (value, oldValue) => {
+  if (!value && oldValue?.iso2) {
+    activeCountryCode.value = oldValue.iso2;
+    return;
+  }
+  if (value?.iso2) {
+    emits('country-changed', value);
+    // this.resetPlaceholder();
+  }
+});
+
+watch(() => 'phoneObject.countryCode', (value) => {
+  activeCountryCode.value = value || '';
+});
+
+watch(() => 'phoneObject.valid', () => {
+  emits('validate', phoneObject.value);
+});
+
+watch(() => 'phoneObject.formatted', (value) => {
+  if (!autoFormatFallback.value || customValidateFallback.value) {
+    return;
+  }
+  emitInput(value);
+
+  nextTick(() => {
+    // In case `v-model` is not set, we need to update the `phone` to be new formatted value
+    if (value && !props.modelValue) {
+      phone.value = value;
+    }
+  });
+});
+
+watch(() => 'inputOptions.placeholder', () => {
+  resetPlaceholder();
+});
+
+watch(() => props.modelValue, (value, oldValue) => {
+  if (!testCharacters()) {
+    nextTick(() => {
+      phone.value = oldValue;
+      onInput();
+    });
+  } else {
+    phone.value = value;
+  }
+});
+
+watch(open, (isDropdownOpened) => {
+  // Emit open and close events
+  if (isDropdownOpened) {
+    setDropdownPosition();
+    emits('open');
+  } else {
+    emits('close');
+  }
+});
 </script>
 
 <style src="../assets/sprite.css"></style>

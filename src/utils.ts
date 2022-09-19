@@ -1,4 +1,5 @@
 import allCountries from './assets/all-countries';
+import { CustomOptions } from "@/index";
 
 export function getCountry() {
   return fetch('https://ip2c.org/s')
@@ -271,7 +272,7 @@ export const allProps = [
   },
 ];
 
-export const defaultOptions = [...allProps]
+export const defaultOptions: CustomOptions = [...allProps]
   .reduce((prv, crr) => {
     if (crr.name.includes('.')) {
       const [key, nestedKey] = crr.name.split('.');

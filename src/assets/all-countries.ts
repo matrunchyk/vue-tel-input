@@ -12,7 +12,10 @@
 //    iso2 code,
 //    International dial code
 // ]
-const allCountries = [
+
+export type CountryConfig = [string, string, string, number?];
+
+const allCountries: CountryConfig[] = [
   [
     'Afghanistan (‫افغانستان‬‎)',
     'af',
