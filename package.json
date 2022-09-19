@@ -8,7 +8,10 @@
     "type": "git",
     "url": "https://github.com/matrunchyk/vue3-tel-input.git"
   },
-
+  "homepage": "https://github.com/matrunchyk/vue3-tel-input.git",
+  "bugs": {
+    "url": "https://github.com/matrunchyk/vue3-tel-input/issues"
+  },
   "type": "module",
   "source": "src/index.ts",
   "main": "./dist/vue3-tel-input.umd.cjs",
@@ -51,6 +54,9 @@
     "vite": "^3.1.3",
     "vite-plugin-static-copy": "^0.9.0",
     "vue-tsc": "^0.40.13"
+  },
+  "publishConfig": {
+    "registry":"https://npm.pkg.github.com/"
   },
   "keywords": [
     "vue",
