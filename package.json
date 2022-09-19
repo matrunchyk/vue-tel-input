@@ -1,6 +1,6 @@
 {
   "name": "@matrunchyk/vue3-tel-input",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "International Telephone Input with Vue",
   "author": "Serhii Matrunchyk <serhii@matrunchyk.com>",
   "license": "MIT",
@@ -40,6 +40,10 @@
     "vue": "^3.2.39",
     "click-outside-vue3": "^4.0.1"
   },
+  "files": [
+    "dist",
+    "types"
+  ],
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.2.0",
     "@types/node": "^16.11.59",
