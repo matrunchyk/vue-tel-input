@@ -34,7 +34,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
-    "build-publish": "npm run build && npm publish"
+    "build-publish": "npm version patch && npm run build && npm publish"
   },
   "dependencies": {
     "libphonenumber-js": "^1.10.13"
