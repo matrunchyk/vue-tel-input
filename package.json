@@ -1,6 +1,6 @@
 {
   "name": "@matrunchyk/vue3-tel-input",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "International Telephone Input with Vue",
   "author": "Serhii Matrunchyk <serhii@matrunchyk.com>",
   "license": "MIT",
@@ -64,7 +64,7 @@
     "vue-tsc": "^0.40.13"
   },
   "publishConfig": {
-    "registry":"https://registry.npmjs.org/",
+    "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
   "keywords": [
