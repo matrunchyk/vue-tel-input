@@ -1,6 +1,6 @@
 {
   "name": "@matrunchyk/vue3-tel-input",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "International Telephone Input with Vue",
   "author": "Serhii Matrunchyk <serhii@matrunchyk.com>",
   "license": "MIT",
