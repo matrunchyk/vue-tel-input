@@ -34,34 +34,34 @@ export interface CustomOptions {
   [index: string]: any;
 }
 
-export default {
-  install(app, customOptions: CustomOptions = {}) {
-    app.use(vClickOutside);
+VueTelInput.install = (app, customOptions: CustomOptions = {}) => {
+  app.use(vClickOutside);
 
-    const {
-      dropdownOptions: customDropdownOptions,
-      inputOptions: customInputOptions,
-      ...otherCustomOptions
-    } = customOptions;
-    const {
-      dropdownOptions: defaultDropdownOptions,
-      inputOptions: defaultInputOptions,
-      ...otherDefaultOptions
-    } = defaultOptions;
+  const {
+          dropdownOptions: customDropdownOptions,
+          inputOptions: customInputOptions,
+          ...otherCustomOptions
+        } = customOptions;
+  const {
+          dropdownOptions: defaultDropdownOptions,
+          inputOptions: defaultInputOptions,
+          ...otherDefaultOptions
+        } = defaultOptions;
 
-    utils.options = {
-      inputOptions: {
-        ...defaultInputOptions,
-        ...customInputOptions,
-      },
-      dropdownOptions: {
-        ...defaultDropdownOptions,
-        ...customDropdownOptions,
-      },
-      ...otherDefaultOptions,
-      ...otherCustomOptions,
-    };
+  utils.options = {
+    inputOptions: {
+      ...defaultInputOptions,
+      ...customInputOptions,
+    },
+    dropdownOptions: {
+      ...defaultDropdownOptions,
+      ...customDropdownOptions,
+    },
+    ...otherDefaultOptions,
+    ...otherCustomOptions,
+  };
 
-    app.component('vue-tel-input', VueTelInput);
-  },
+  app.component('vue-tel-input', VueTelInput);
 }
+
+export default VueTelInput;

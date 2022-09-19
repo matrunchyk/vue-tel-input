@@ -1,10 +1,10 @@
-# vue-tel-input
+# vue3-tel-input
 
 International Telephone Input with Vue.
 
-[![](https://img.shields.io/npm/dt/vue-tel-input.svg)](https://www.npmjs.com/package/vue-tel-input) [![](https://img.shields.io/github/stars/iamstevendao/vue-tel-input.svg)](https://github.com/iamstevendao/vue-tel-input)
+[![](https://img.shields.io/npm/dt/vue3-tel-input.svg)](https://www.npmjs.com/package/vue3-tel-input) [![](https://img.shields.io/github/stars/matrunchyk/vue3-tel-input.svg)](https://github.com/matrunchyk/vue3-tel-input)
 
-<p align="center">
+<p>
 <img width="600px" alt="In-action GIF" src="https://thumbs.gfycat.com/EducatedPoliteBluefintuna-size_restricted.gif"/>
 </p>
 
@@ -17,15 +17,15 @@ International Telephone Input with Vue.
 - Install the plugin:
 
   ```sh
-  npm install vue-tel-input
+  npm install @matrunchyk/vue3-tel-input
   ```
 
 - Add the plugin into your app:
 
   ```javascript
   import Vue from 'vue'
-  import VueTelInput from 'vue-tel-input'
-  import 'vue-tel-input/dist/vue-tel-input.css'
+  import VueTelInput from 'vue3-tel-input'
+  import 'vue3-tel-input/dist/style.css'
 
   Vue.use(VueTelInput)
   ```
@@ -45,15 +45,15 @@ International Telephone Input with Vue.
 ### npm
 
 ```bash
-  npm install vue-tel-input
+  npm install @matrunchyk/vue-tel-input
 ```
 
 Install the plugin into Vue:
 
 ```javascript
 import Vue from 'vue'
-import VueTelInput from 'vue-tel-input'
-import 'vue-tel-input/dist/vue-tel-input.css'
+import VueTelInput from '@matrunchyk/vue3-tel-input'
+import '@matrunchyk/vue3-tel-input/dist/style.css'
 
 Vue.use(VueTelInput, options) // Define default global options here (optional)
 ```
@@ -68,7 +68,7 @@ Or use the component directly:
   <vue-tel-input v-model="value"></vue-tel-input>
 </template>
 <script>
-import { VueTelInput } from 'vue-tel-input'
+import { VueTelInput } from '@matrunchyk/vue3-tel-input'
 
 export default {
   components: {
@@ -76,23 +76,6 @@ export default {
   },
 };
 
-<style src="vue-tel-input/dist/vue-tel-input.css"></style>
-</script>
-```
-
-### Browser
-
-```html
-<script src="https://unpkg.com/vue-tel-input"></script>
-<link rel="stylesheet" href="https://unpkg.com/vue-tel-input/dist/vue-tel-input.css">
-```
-
-**If Vue is detected in the Page, the plugin is installed automatically.**
-
-** Otherwise, manually install the plugin into Vue:
-
-```js
-Vue.use(window['vue-tel-input']);
 ```
 
 ## Changelog
@@ -141,6 +124,7 @@ Start the browser build example
 
 ## License
 
+Copyright (c) 2022 Serhii Matrunchyk.
 Copyright (c) 2018 Steven Dao.
 Released under the [MIT License](https://github.com/iamstevendao/vue-tel-input/blob/master/LICENSE).
 
